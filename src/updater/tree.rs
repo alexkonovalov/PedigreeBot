@@ -1,90 +1,32 @@
 use petgraph::Directed;
 use petgraph::dot::Dot;
-use strum_macros::EnumString;
+use std::fmt::{self, Display};
 use std::str::FromStr;
 use std::string::{ToString};
-use strum_macros::Display;
 use petgraph::graph::{IndexType, NodeIndex};
 use petgraph::prelude::Graph;
 
-enum UpdaterCommand {
-    CreateRelative(NodeIndex<u32>, String),
-    CreateLink(NodeIndex<u32>, NodeIndex<u32>, String, String),
-    ContinueOrSwitch(NodeIndex<u32>, String),
+use crate::updater::commands::{ButtonCommand, OutputCommand, Relation, UpdaterCommand, NextAction, YesNo};
+
+pub struct Person {
+    name: String,
+    is_chilren_sealed: bool,
 }
 
-#[derive(EnumString, Display)]
-pub enum Relation {
-    Parent,
-    Child
+impl Display for Person {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+
+impl Person {
+    pub fn new(name: String) -> Self { Self { name, is_chilren_sealed: false } }
 }
 
 pub struct Updater {
     expected_command: Option<UpdaterCommand>,
-    graph: Graph<String, Relation, Directed, u32>,
-}
-
-
-#[derive(EnumString, Display)]
-pub enum NextAction {
-    Continue,
-    Switch
-}
-
-impl Default for Relation {
-    fn default() -> Self { Relation::Parent }
-}
-impl Default for NextAction {
-    fn default() -> Self { NextAction::Continue }
-}
-
-pub enum ButtonCommand {
-    Relation(Relation),
-    NextAction(NextAction)
-}
-
-impl FromStr for ButtonCommand {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let matches: Vec<&str> = s.split(":").collect();
-        if matches.len() != 2 {
-            return Err(())
-        }
-        let command = match matches[0] {
-            "Command_Relation" => {
-               let relation = match Relation::from_str(matches[1]) {
-                    Ok(r) => r,
-                    Err(_) => return Err(())
-                };
-                Ok(ButtonCommand::Relation(relation))
-            },
-            "Command_NextAction"  => {
-                let next_action = match NextAction::from_str(matches[1]) {
-                     Ok(r) => r,
-                     Err(_) => return Err(())
-                 };
-                 Ok(ButtonCommand::NextAction(next_action))
-             },
-            &_ => Err(())
-        };
-        command
-    }
-}
-
-impl ToString for ButtonCommand {
-    fn to_string(&self) -> String {
-        match &self {
-            ButtonCommand::Relation(rel) => format!("Command_Relation:{}", rel),
-            ButtonCommand::NextAction(action) => format!("Command_NextAction:{}", action),
-        }
-    }
-}
-
-
-pub enum OutputCommand {
-     Prompt(String),
-     PromptButtons(Vec<(ButtonCommand, String)>, String)
+    graph: Graph<Person, Relation, Directed, u32>,
 }
 
 impl Updater {
@@ -98,18 +40,22 @@ impl Updater {
         let added_name = name;
         let oup = match &self.expected_command {
             None => {
-                let root_index = self.graph.add_node(String::from(added_name));
+                let root_index = self.graph.add_node(Person::new(added_name.to_string()));
                 //create root item
                 (
-                    Some(UpdaterCommand::CreateRelative(root_index, String::from(added_name))),
-                    OutputCommand::Prompt(
-                        format!("Congrats! {} added. Please write the name of his/her child or parent.", added_name)
+                    Some(UpdaterCommand::CheckIfChildren(root_index, String::from(added_name))),
+                    OutputCommand::PromptButtons(
+                            vec![
+                                (ButtonCommand::IsChild(YesNo::Yes), "Yes".to_string()),
+                                (ButtonCommand::IsChild(YesNo::No), "No".to_string())
+                            ],
+                        format!("Congrats! {} added. Please tell me about he/she has any children", added_name)
                     )
                 )
                 
             },
             Some(UpdaterCommand::CreateRelative( ix, name  )) => {
-                let relative_ix = self.graph.add_node(String::from(added_name));
+                let relative_ix = self.graph.add_node(Person::new(added_name.to_string()));
                 //create relative  
                 (
                     Some(UpdaterCommand::CreateLink(*ix, relative_ix, String::from(added_name), String::from(name))),
@@ -132,6 +78,34 @@ impl Updater {
     
     pub fn handle_buttons (&mut self, button_key: &str) -> OutputCommand {
         let oup = match ButtonCommand::from_str(button_key) {
+            Ok(ButtonCommand::IsChild(yesNo)) => {
+                if let Some(UpdaterCommand::CreateLink(ix,ix2, name1, name2)) = &self.expected_command {
+                    match yesNo { 
+                        YesNo::Yes => {
+
+                        }, // self.graph.add_edge(*ix2, *ix, Relation::Parent ),
+                        YesNo::No => {
+
+                        }//Relation::Child => self.graph.add_edge(*ix, *ix2, Relation::Parent ),
+                    };
+
+                    (
+                        Some(UpdaterCommand::ContinueOrSwitch(*ix, String::from(name2))),
+                        OutputCommand::PromptButtons(
+                            vec![
+                                (ButtonCommand::NextAction(NextAction::Continue), "Continue".to_string()),
+                                (ButtonCommand::NextAction(NextAction::Switch), "Switch".to_string())
+                            ],
+                            format!("Congrats! Relationship between {} and {} added. Please choose do you want to continue describing {} or switch to next relative.", name1, name2, name2),
+                        )
+                    )
+                }
+                else {
+                    (None, OutputCommand::Prompt(
+                        format!("Sorry! I don't think I can handle this kind of input right now.")
+                    ))
+                }
+            },
             Ok(ButtonCommand::Relation(relation)) => {
                 if let Some(UpdaterCommand::CreateLink(ix,ix2, name1, name2)) = &self.expected_command {
                     match relation  { 
@@ -178,12 +152,12 @@ impl Updater {
                                 }
                             }
                             let described_index = next_ix.unwrap();
-                            let described_name = &self.graph[described_index];
+                            let described_person = &self.graph[described_index];
 
                             (
-                                Some(UpdaterCommand::CreateRelative(described_index, String::from(described_name))),
+                                Some(UpdaterCommand::CreateRelative(described_index, String::from(&described_person.name))),
                                 OutputCommand::Prompt(
-                                    format!("Please write the name of {} child or parent.", described_name)
+                                    format!("Please write the name of {} child or parent.", described_person)
                                 )
                             )
                         }

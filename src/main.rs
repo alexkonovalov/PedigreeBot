@@ -16,7 +16,8 @@ use teloxide_core::{
     types::{InputFile},
 };
 
-use crate::updater::tree::{ButtonCommand, OutputCommand, Updater};
+use crate::updater::tree::{Updater};
+use crate::updater::commands::{ButtonCommand, OutputCommand};
 mod updater;
 mod auxillary;
 
