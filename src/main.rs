@@ -71,21 +71,6 @@ async fn run() {
         InlineKeyboardMarkup::new(keyboard)
     }
 
-    // fn make_keyboard(commands: &Vec<(ButtonCommand, String)>) -> KeyboardMarkup {
-    //     let mut keyboard: Vec<Vec<KeyboardButton>> = vec![];
-
-    //     for versions in commands.chunks(3) {
-    //         let row = versions
-    //             .iter()
-    //             .map(|command| KeyboardButton::new(command.0.to_string()))
-    //             .collect();
-
-    //         keyboard.push(row);
-    //     }
-
-    //     KeyboardMarkup::new(keyboard)
-    // }
-
     let handle_text_message = move |rx: DispatcherHandlerRx<AutoSend<Bot>, Message>| {
         UnboundedReceiverStream::new(rx).for_each_concurrent(None, move |cx| {
                 let dialogues = dialogs_rc.clone();
@@ -167,28 +152,23 @@ async fn run() {
 
                                     let button_command = ButtonCommand::from_str(&input_str);
                                     let output = match button_command {
-                                        Ok(ButtonCommand::AddChild) | Ok(ButtonCommand::AddSibling) => {
-                                            dialogue.1.handle(InputCommand::Yes)
-                                        },
-                                        Ok(ButtonCommand::SealChildren) | Ok(ButtonCommand::SealSiblings) => {
+                                        Ok(ButtonCommand::No) => {
                                             dialogue.1.handle(InputCommand::No)
                                         }
-                                        _ => OutputCommand::Prompt("ooopsydoopsey".to_string())
+                                        _ => OutputCommand::Prompt("Can't recognise the command".to_string())
                                     };
                                 
                                     let _msg =  match output {
                                         OutputCommand::Prompt(a) => {
-                                              // bot.edit_message_text(chat.id, id, "Done!").await.unwrap();
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
                                             let message_id = bot.send_message(chat.id, a).await.unwrap().id;
                                             dialogue.2 = Some(message_id);
                                         }
-                                        OutputCommand::PromptButtons(commands, promdpt) => {
+                                        OutputCommand::PromptButtons(commands, prompt) => {
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
                                             bot.edit_message_reply_markup_inline(id.to_string());
 
-                                          //  bot.edit_message_text(chat.id, id, "Done").await.unwrap();
-                                            let message_id = bot.send_message(chat.id, promdpt)
+                                            let message_id = bot.send_message(chat.id, prompt)
                                                 .reply_markup(make_inline_keyboard(&commands))
                                                 .await.unwrap().id;
                                             dialogue.2 = Some(message_id);
@@ -218,12 +198,6 @@ async fn run() {
     Dispatcher::new(bot)
         .messages_handler(handle_text_message)
         .callback_queries_handler(handle_query)
-        .inline_queries_handler(|rx: DispatcherHandlerRx<AutoSend<Bot>, InlineQuery>| {
-            UnboundedReceiverStream::new(rx).for_each_concurrent(None, |cx| async move {
-               println!("cx.INLINE update.data {:?}", cx.update);
-                //callback_handler(cx).await.log_on_error().await;
-            })
-        })
         .setup_ctrlc_handler()
         .dispatch_with_listener(
             auxillary::webhook(cloned_bot, url, addr).await,
