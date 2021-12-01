@@ -7,6 +7,7 @@ use teloxide::{ utils::command::BotCommand, prelude::*};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use std::{ net::SocketAddr };
 use std::{ env };
+use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::{task, time}; 
 
@@ -16,7 +17,7 @@ use teloxide_core::{
     types::{InputFile},
 };
 
-use crate::updater::tree::{Updater};
+use crate::updater::tree::{InputCommand, Updater};
 use crate::updater::commands::{ButtonCommand, OutputCommand};
 mod updater;
 mod auxillary;
@@ -50,7 +51,7 @@ async fn run() {
     let addr = "127.0.0.1:5000".parse::<SocketAddr>().unwrap();
     let url = Url::parse(&url).unwrap();
 
-    let dialogs: CHashMap<String, (Instant, Updater)> = CHashMap::new();
+    let dialogs: CHashMap<String, (Instant, Updater, Option<i32>)> = CHashMap::new(); //todo change to struct
     let dialogs_rc = Arc::new(dialogs);
     let dialogs_rc2 = dialogs_rc.clone();
     let dialogs_rc3= dialogs_rc.clone();
@@ -100,7 +101,7 @@ async fn run() {
                         }
                         Ok(Command::Start) => {
                             dialogues
-                                .insert(chat_id.to_string(), (Instant::now(),Updater::new()));
+                                .insert(chat_id.to_string(), (Instant::now(), Updater::new(), None));
 
                             let _ = cx.answer("Let's start! Please add some person in your family tree or write your name").await;
                             ()
@@ -123,13 +124,14 @@ async fn run() {
                             let dialogue = dialogues.get_mut(&chat_id.to_string());
 
                             if let Some(mut dialogue) = dialogue {
-                                let output = dialogue.1.handle_text(&text);
+                                let output = dialogue.1.handle(updater::tree::InputCommand::Text(&text));
 
                                 let msg =  match output {
                                     OutputCommand::Prompt(a) => cx.answer(a),
                                     OutputCommand::PromptButtons(commands, promdpt) => cx.answer(promdpt).reply_markup(make_inline_keyboard(&commands)),
                                 };
-                                let _ = msg.await;
+                                let msg_id = msg.await.unwrap().id;
+                                dialogue.2 = Some(msg_id);
                             }
                             ()
                         }
@@ -153,17 +155,43 @@ async fn run() {
                                 let input_str = &version;
                                 let dialogue = dialogues.get_mut(&chat.id.to_string());
 
-                                if let Some(mut dialogue) = dialogue { 
-                                    let output = dialogue.1.handle_buttons(&input_str);
+                                if let Some(mut dialogue) = dialogue {
+                                    //if user clicked on button of obsolete message
+                                    if let Some(last_msg_id) = dialogue.2 {
+                                        if id != last_msg_id {
+                                            //remove buttons from that message
+                                            bot.edit_message_reply_markup(chat.id, id).await.unwrap();
+                                            return ();
+                                        }
+                                    }
+
+                                    let button_command = ButtonCommand::from_str(&input_str);
+                                    let output = match button_command {
+                                        Ok(ButtonCommand::AddChild) | Ok(ButtonCommand::AddSibling) => {
+                                            dialogue.1.handle(InputCommand::Yes)
+                                        },
+                                        Ok(ButtonCommand::SealChildren) | Ok(ButtonCommand::SealSiblings) => {
+                                            dialogue.1.handle(InputCommand::No)
+                                        }
+                                        _ => OutputCommand::Prompt("ooopsydoopsey".to_string())
+                                    };
                                 
                                     let _msg =  match output {
                                         OutputCommand::Prompt(a) => {
-                                            bot.edit_message_text(chat.id, id, "Done!").await.unwrap();
-                                            bot.send_message(chat.id, a).await.unwrap();
+                                              // bot.edit_message_text(chat.id, id, "Done!").await.unwrap();
+                                            bot.edit_message_reply_markup(chat.id, id).await.unwrap();
+                                            let message_id = bot.send_message(chat.id, a).await.unwrap().id;
+                                            dialogue.2 = Some(message_id);
                                         }
                                         OutputCommand::PromptButtons(commands, promdpt) => {
-                                            bot.edit_message_text(chat.id, id, "Done").await.unwrap();
-                                            bot.send_message(chat.id, promdpt).reply_markup(make_inline_keyboard(&commands)).await.unwrap();
+                                            bot.edit_message_reply_markup(chat.id, id).await.unwrap();
+                                            bot.edit_message_reply_markup_inline(id.to_string());
+
+                                          //  bot.edit_message_text(chat.id, id, "Done").await.unwrap();
+                                            let message_id = bot.send_message(chat.id, promdpt)
+                                                .reply_markup(make_inline_keyboard(&commands))
+                                                .await.unwrap().id;
+                                            dialogue.2 = Some(message_id);
                                         }
                                     };
                                 }  

@@ -5,7 +5,7 @@ use strum_macros::Display;
 use petgraph::graph::{NodeIndex};
 
 pub enum UpdaterCommand {
-    ReplyChild(NodeIndex<u32>),
+    AddChildOrSeal(NodeIndex<u32>),
     CreateChild(NodeIndex<u32>)
     // CreateRelative(NodeIndex<u32>, String),
     // CreateLink(NodeIndex<u32>, NodeIndex<u32>, String, String),
@@ -35,6 +35,8 @@ pub enum UpdaterCommand {
 pub enum ButtonCommand {
     AddChild,
     SealChildren,
+    AddSibling,
+    SealSiblings,
 }
 
 // impl Default for Relation {
