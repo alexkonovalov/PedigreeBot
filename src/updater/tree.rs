@@ -5,7 +5,7 @@ use std::string::{ToString};
 use petgraph::{graph::{NodeIndex}, Direction};
 use petgraph::prelude::Graph;
 
-use crate::updater::commands::{ButtonCommand, OutputCommand };
+use crate::updater::commands::{ButtonCommand, OutputCommand};
 
 pub struct Person {
     name: String,

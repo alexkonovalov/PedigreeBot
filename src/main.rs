@@ -48,7 +48,14 @@ async fn run() {
     let cloned_bot = bot.clone();
     
     let url = env::var("SERVER_URL").expect("no server url in env");
-    let addr = "127.0.0.1:5000".parse::<SocketAddr>().unwrap();
+
+    let ip = env::var("IP").expect("no IP in env");
+    let port = env::var("PORT").expect("no PORT in env");
+
+    println!("IP:{}", ip);
+    println!("PORT:{}", port);
+    
+    let addr = format!("{}:{}", ip, port).parse::<SocketAddr>().unwrap();
     let url = Url::parse(&url).unwrap();
 
     let dialogs: CHashMap<String, (Instant, Updater, Option<i32>)> = CHashMap::new(); //todo change to struct
