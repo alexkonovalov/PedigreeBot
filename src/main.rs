@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use chashmap::CHashMap;
+
 use teloxide::adaptors::AutoSend;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup };
@@ -14,8 +15,8 @@ use dotenv::dotenv;
 use reqwest::Url;
 use teloxide_core::types::InputFile;
 
-use crate::updater::tree::{InputCommand, Updater};
-use crate::updater::commands::{ButtonCommand, OutputCommand};
+use crate::updater::graph_updater::{ GraphUpdater };
+use crate::updater::model::{ButtonCommand,InputCommand, OutputCommand};
 mod updater;
 mod auxillary;
 
@@ -38,12 +39,12 @@ enum Command {
 
 struct Dialog {
     creation: Instant,
-    graph_updater: Updater,
+    graph_updater: GraphUpdater,
     last_msg_id: Option<i32>,
 }
 
 impl Dialog {
-    fn new() -> Self { Self { creation: Instant::now(), graph_updater: Updater::new(), last_msg_id: None } }
+    fn new() -> Self { Self { creation: Instant::now(), graph_updater: GraphUpdater::new(), last_msg_id: None } }
 }
 
 async fn run() {
@@ -118,7 +119,7 @@ async fn run() {
                             let dialog = dialogs.get_mut(&chat_id.to_string());
 
                             if let Some(mut dialog) = dialog {
-                                let output = dialog.graph_updater.handle_command(updater::tree::InputCommand::Text(&text));
+                                let output = dialog.graph_updater.handle_command(InputCommand::Text(&text));
 
                                 let msg =  match output {
                                     OutputCommand::Prompt(a) => cx.answer(a),
@@ -213,5 +214,4 @@ async fn run() {
             LoggingErrorHandler::with_custom_text("An error from the update listener"),
         )
         .await;
-
 }
