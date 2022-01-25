@@ -45,20 +45,14 @@ async fn run() {
     let cloned_bot = bot.clone();
     
     let url = env::var("SERVER_URL").expect("no server url in env");
-
     let ip = env::var("IP").expect("no IP in env");
     let port = env::var("PORT").expect("no PORT in env");
 
-    println!("IP:{}", ip);
-    println!("PORT:{}", port);
-    
     let addr = format!("{}:{}", ip, port).parse::<SocketAddr>().unwrap();
     let url = Url::parse(&url).unwrap();
 
     let dialogs: CHashMap<String, (Instant, Updater, Option<i32>)> = CHashMap::new(); //todo change to struct
     let dialogs_rc = Arc::new(dialogs);
-    let dialogs_rc2 = dialogs_rc.clone();
-    let dialogs_rc3= dialogs_rc.clone();
 
     fn make_inline_keyboard(commands: &Vec<(ButtonCommand, String)>) -> InlineKeyboardMarkup {
         let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
@@ -75,9 +69,10 @@ async fn run() {
         InlineKeyboardMarkup::new(keyboard)
     }
 
+    let dialogs_text_message_rc= dialogs_rc.clone();
     let handle_text_message = move |rx: DispatcherHandlerRx<AutoSend<Bot>, Message>| {
         UnboundedReceiverStream::new(rx).for_each_concurrent(None, move |cx| {
-                let dialogues = dialogs_rc.clone();
+                let dialogs = dialogs_text_message_rc.clone();
 
                 let text = String::from(cx.update.text().unwrap());
                 let chat_id = cx.chat_id();
@@ -89,17 +84,17 @@ async fn run() {
                             ()
                         }
                         Ok(Command::Start) => {
-                            dialogues
+                            dialogs
                                 .insert(chat_id.to_string(), (Instant::now(), Updater::new(), None));
 
                             let _ = cx.answer("Let's start! Please add some person in your family tree or write your name").await;
                             ()
                         }
                         Ok(Command::Finish) => {
-                            let dialogue = dialogues.get(&chat_id.to_string());
+                            let dialog = dialogs.get(&chat_id.to_string());
 
-                            if let Some(dialogue) = dialogue {
-                                let dot_graph = dialogue.1.print_dot();
+                            if let Some(dialog) = dialog {
+                                let dot_graph = dialog.1.print_dot();
                                 if let Ok(graph) = auxillary::print_graph(dot_graph) {
                                     let _ = cx.answer_photo(InputFile::Memory {
                                         file_name: "diagram.png".to_string(),
@@ -110,17 +105,17 @@ async fn run() {
                             ()
                         }
                         _ => {
-                            let dialogue = dialogues.get_mut(&chat_id.to_string());
+                            let dialog = dialogs.get_mut(&chat_id.to_string());
 
-                            if let Some(mut dialogue) = dialogue {
-                                let output = dialogue.1.handle(updater::tree::InputCommand::Text(&text));
+                            if let Some(mut dialog) = dialog {
+                                let output = dialog.1.handle_command(updater::tree::InputCommand::Text(&text));
 
                                 let msg =  match output {
                                     OutputCommand::Prompt(a) => cx.answer(a),
                                     OutputCommand::PromptButtons(commands, promdpt) => cx.answer(promdpt).reply_markup(make_inline_keyboard(&commands)),
                                 };
                                 let msg_id = msg.await.unwrap().id;
-                                dialogue.2 = Some(msg_id);
+                                dialog.2 = Some(msg_id);
                             }
                             ()
                         }
@@ -132,21 +127,22 @@ async fn run() {
         )
     };
 
+    let dialogs_query_rc = dialogs_rc.clone();
     let handle_query = move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
         UnboundedReceiverStream::new(rx).for_each_concurrent(None, move |cx| {
                 let UpdateWithCx { requester: bot, update: query } = cx;
-                let dialogues = dialogs_rc2.clone();
+                let dialogs = dialogs_query_rc.clone();
             
                 async move {
                     if let Some(version) = query.data {
                         match query.message {
                             Some(Message { chat , id, ..}) => {
                                 let input_str = &version;
-                                let dialogue = dialogues.get_mut(&chat.id.to_string());
+                                let dialog = dialogs.get_mut(&chat.id.to_string());
 
-                                if let Some(mut dialogue) = dialogue {
+                                if let Some(mut dialog) = dialog {
                                     //if user clicked on button of obsolete message
-                                    if let Some(last_msg_id) = dialogue.2 {
+                                    if let Some(last_msg_id) = dialog.2 {
                                         if id != last_msg_id {
                                             //remove buttons from that message
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
@@ -157,7 +153,7 @@ async fn run() {
                                     let button_command = ButtonCommand::from_str(&input_str);
                                     let output = match button_command {
                                         Ok(ButtonCommand::No) => {
-                                            dialogue.1.handle(InputCommand::No)
+                                            dialog.1.handle_command(InputCommand::No)
                                         }
                                         _ => OutputCommand::Prompt("Can't recognise the command".to_string())
                                     };
@@ -166,7 +162,7 @@ async fn run() {
                                         OutputCommand::Prompt(a) => {
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
                                             let message_id = bot.send_message(chat.id, a).await.unwrap().id;
-                                            dialogue.2 = Some(message_id);
+                                            dialog.2 = Some(message_id);
                                         }
                                         OutputCommand::PromptButtons(commands, prompt) => {
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
@@ -175,7 +171,7 @@ async fn run() {
                                             let message_id = bot.send_message(chat.id, prompt)
                                                 .reply_markup(make_inline_keyboard(&commands))
                                                 .await.unwrap().id;
-                                            dialogue.2 = Some(message_id);
+                                            dialog.2 = Some(message_id);
                                         }
                                     };
                                 }  
@@ -190,9 +186,10 @@ async fn run() {
         )
     };
 
+    let dialogs_session_rc= dialogs_rc.clone();
     let _session_cleaner = task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60 * 60));
-        let dialogs = dialogs_rc3.clone();
+        let dialogs = dialogs_session_rc.clone();
         loop {
             interval.tick().await;
             dialogs.retain(|_, value| Instant::now().duration_since(value.0).as_secs() < 60 * 60 * 5);

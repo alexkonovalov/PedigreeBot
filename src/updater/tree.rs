@@ -155,7 +155,7 @@ impl Updater {
         }
         match (parent_names.len() > 0, child_names.len() > 0) {
             (true, true) => {
-                Some(format!("who is parent of {} and alson child of {}",child_names.join(", "), parent_names.join(", ")))
+                Some(format!("who is parent of {} and also child of {}",child_names.join(", "), parent_names.join(", ")))
             },
             (false, true) => {
                 Some(format!("who is parent of {}", child_names.join(", ")))
@@ -221,7 +221,7 @@ impl Updater {
                     },
                     _ => ()
                 }
-                return OutputCommand::Prompt("oops. next node didnt match".to_string());
+                return OutputCommand::Prompt("Oops. next node didn't match".to_string());
             },
             None => {
                 return OutputCommand::Prompt("We asked enough! you can get your pedigree chart by performing /finish command".to_string());
@@ -229,7 +229,7 @@ impl Updater {
         }
     }
 
-    pub fn handle (&mut self, input_command: InputCommand) -> OutputCommand {
+    pub fn handle_command (&mut self, input_command: InputCommand) -> OutputCommand {
         let described_ix = &self.described_ix; //todo rename
         match (described_ix.ix, input_command) {
             (None, InputCommand::Text(name)) => {
