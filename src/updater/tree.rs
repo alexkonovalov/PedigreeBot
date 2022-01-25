@@ -221,7 +221,7 @@ impl Updater {
                     },
                     _ => ()
                 }
-                return OutputCommand::Prompt("Oops. next node didn't match".to_string());
+                return OutputCommand::Prompt("Oops. Next node didn't match".to_string());
             },
             None => {
                 return OutputCommand::Prompt("We asked enough! you can get your pedigree chart by performing /finish command".to_string());
@@ -284,12 +284,12 @@ impl Updater {
                         return prompt_next_action(&Action::AskSecondParent, &text)
                     },
                     (_,_)=> {
-                         return OutputCommand::Prompt("oops".to_string());
+                         return OutputCommand::Prompt("Oops".to_string());
                      }
                 }
             }
             _ => {
-                return OutputCommand::Prompt("oops".to_string());
+                return OutputCommand::Prompt("Oops".to_string());
             }
         }
     }
