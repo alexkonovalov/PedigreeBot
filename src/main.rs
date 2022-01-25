@@ -1,21 +1,18 @@
-use std::sync::{Arc};
+use std::sync::Arc;
 use chashmap::CHashMap;
 use teloxide::adaptors::AutoSend;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup };
 use teloxide::{ utils::command::BotCommand, prelude::*};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use std::{ net::SocketAddr };
-use std::{ env };
+use std::{ net::SocketAddr, env };
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::{task, time}; 
 
 use dotenv::dotenv;
-use reqwest::{ Url };
-use teloxide_core::{
-    types::{InputFile},
-};
+use reqwest::Url;
+use teloxide_core::types::InputFile;
 
 use crate::updater::tree::{InputCommand, Updater};
 use crate::updater::commands::{ButtonCommand, OutputCommand};
