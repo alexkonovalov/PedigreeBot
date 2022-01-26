@@ -13,8 +13,6 @@ async fn handle_rejection(error: warp::Rejection) -> Result<impl warp::Reply, In
 
 pub async fn webhook(bot: AutoSend<Bot>, server_url: Url, socket_addr: SocketAddr) -> impl update_listeners::UpdateListener<Infallible> {
     
-    // You might want to specify a self-signed certificate via .certificate
-    // method on SetWebhook.
     bot.set_webhook(server_url)
         .await
         .expect("Cannot setup a webhook");
@@ -36,9 +34,6 @@ pub async fn webhook(bot: AutoSend<Bot>, server_url: Url, socket_addr: SocketAdd
 
     let server = warp::serve(server);
     let (_addr, fut) = server.bind_with_graceful_shutdown(socket_addr, stop_flag);
-
-    // You might want to use serve.key_path/serve.cert_path methods here to
-    // setup a self-signed TLS certificate.
 
     tokio::spawn(fut);
     let stream = UnboundedReceiverStream::new(rx);
