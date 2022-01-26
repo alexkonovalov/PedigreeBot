@@ -47,23 +47,23 @@ impl GraphUpdater {
     }
 
     fn get_description(&self, ix: &NodeIndex<u32>) -> Option<String> {
-        return get_node_description(&self.graph, ix)
+        get_node_description(&self.graph, ix)
    }
 
     fn get_next_node(&self) -> Option<NodeIndex<u32>> {
         let described_ix = self.graph.node_indices().find(|i| {
-            let satisfied = (self.graph[*i].completeness == NodeCompleteness::Plain) |
+            
+            (self.graph[*i].completeness == NodeCompleteness::Plain) |
             (self.graph[*i].completeness == NodeCompleteness::OneParent) |
-            (self.graph[*i].completeness == NodeCompleteness::ParentsComplete);
-            return satisfied;
+            (self.graph[*i].completeness == NodeCompleteness::ParentsComplete)
         });
         if let Some(ix) = described_ix {
             Some(ix)
         } else {
             self.graph.node_indices().find(|i| {
-                let satisfied = (self.graph[*i].completeness == NodeCompleteness::Plain) |
-                (self.graph[*i].completeness == NodeCompleteness::SiblingsComplete);
-                return satisfied;
+                
+                (self.graph[*i].completeness == NodeCompleteness::Plain) |
+                (self.graph[*i].completeness == NodeCompleteness::SiblingsComplete)
             })
         }
     }
@@ -103,10 +103,10 @@ impl GraphUpdater {
                     },
                     _ => ()
                 }
-                return OutputCommand::Prompt("Oops. Next node didn't match".to_string());
+                OutputCommand::Prompt("Oops. Next node didn't match".to_string())
             },
             None => {
-                return OutputCommand::Prompt("We asked enough! you can get your pedigree chart by performing /finish command".to_string());
+                OutputCommand::Prompt("We asked enough! you can get your pedigree chart by performing /finish command".to_string())
             }
         }
     }
@@ -117,12 +117,12 @@ impl GraphUpdater {
             (None, InputCommand::Text(name)) => {
                 let root_index = self.graph.add_node(Person::new(name.to_string(), NEW_NODE_STATUS));
                 self.described_ix = DescribedNodeInfo::new(Some(root_index));
-                return map_next_action_output(&Action::AskFirstParent, name);
+                map_next_action_output(&Action::AskFirstParent, name)
             }
             (Some(ix), command) => {
                 let current_status: &NodeCompleteness;
                 let described_name: String;
-                let described_ix_copy = ix.clone();
+                let described_ix_copy = ix;
                 {
                     let node = &self.graph[ix];
                     current_status = &node.completeness;
@@ -132,46 +132,46 @@ impl GraphUpdater {
                 match (&current_status, command) {
                     (NodeCompleteness::Plain, InputCommand::No) => {
                         self.graph[described_ix_copy].completeness = NodeCompleteness::SiblingsComplete;
-                        return self.switch_next_relative();
+                        self.switch_next_relative()
                     },
                     (NodeCompleteness::Plain, InputCommand::Text(text)) => {
                         self.add_parent(&described_ix_copy, text);
                         self.graph[described_ix_copy].completeness = NodeCompleteness::OneParent;
-                        return map_next_action_output(&Action::AskSecondParent, &described_name)
+                        map_next_action_output(&Action::AskSecondParent, &described_name)
                     },
                     (NodeCompleteness::OneParent, InputCommand::No) => {
                         self.graph[described_ix_copy].completeness = NodeCompleteness::ParentsComplete;
-                        return self.switch_next_relative();
+                        self.switch_next_relative()
                     },
                     (NodeCompleteness::OneParent, InputCommand::Text(text)) => {
                         self.add_parent(&described_ix_copy, text);
                         self.graph[described_ix_copy].completeness = NodeCompleteness::ParentsComplete;
-                        return map_next_action_output(&Action::AskIfSiblings, &described_name)
+                        map_next_action_output(&Action::AskIfSiblings, &described_name)
                     },
                     (NodeCompleteness::ParentsComplete, InputCommand::No) => { //end siblings. switch to next
                         self.graph[described_ix_copy].completeness = NodeCompleteness::SiblingsComplete;
-                        return self.switch_next_relative();
+                        self.switch_next_relative()
                     },
                     (NodeCompleteness::ParentsComplete, InputCommand::Text(text),) => { //add sibling 
                         self.add_sibling(&described_ix_copy, text);
-                        return map_next_action_output(&Action::AskIfMoreSiblings, &described_name)
+                        map_next_action_output(&Action::AskIfMoreSiblings, &described_name)
                     },
                     (NodeCompleteness::SiblingsComplete, InputCommand::No) => { //end children. switch to next
                         self.graph[described_ix_copy].completeness = NodeCompleteness::ChildrenComplete;
-                        return self.switch_next_relative();
+                        self.switch_next_relative()
                     },
                     (NodeCompleteness::SiblingsComplete, InputCommand::Text(text)) => { //add child 
                         let child_id = self.add_child(&described_ix_copy, text);
                         self.described_ix = DescribedNodeInfo::new(Some(child_id));
-                        return map_next_action_output(&Action::AskSecondParent, &text)
+                        map_next_action_output(&Action::AskSecondParent, text)
                     },
                     (_,_)=> {
-                         return OutputCommand::Prompt("Oops".to_string());
+                         OutputCommand::Prompt("Oops".to_string())
                      }
                 }
             }
             _ => {
-                return OutputCommand::Prompt("Oops".to_string());
+                OutputCommand::Prompt("Oops".to_string())
             }
         }
     }

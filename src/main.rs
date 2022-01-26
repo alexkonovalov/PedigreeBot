@@ -92,14 +92,14 @@ async fn run() {
                         Ok(Command::Help) => {
                             // Just send the description of all commands.
                             let _ = cx.answer(Command::descriptions()).await;
-                            ()
+                            
                         }
                         Ok(Command::Start) => {
                             dialogs
                                 .insert(chat_id.to_string(), Dialog::new());
 
                             let _ = cx.answer("Let's start! Please add some person in your family tree or write your name").await;
-                            ()
+                            
                         }
                         Ok(Command::Finish) => {
                             let dialog = dialogs.get(&chat_id.to_string());
@@ -113,7 +113,7 @@ async fn run() {
                                     }).await;
                                 }
                             }
-                            ()
+                            
                         }
                         _ => {
                             let dialog = dialogs.get_mut(&chat_id.to_string());
@@ -128,7 +128,7 @@ async fn run() {
                                 let msg_id = msg.await.unwrap().id;
                                 dialog.last_msg_id = Some(msg_id);
                             }
-                            ()
+                            
                         }
                     }
                 }
@@ -155,11 +155,11 @@ async fn run() {
                                         if id != last_msg_id {
                                             //remove buttons from that message
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
-                                            return ();
+                                            return ;
                                         }
                                     }
 
-                                    let button_command = ButtonCommand::from_str(&input_str);
+                                    let button_command = ButtonCommand::from_str(input_str);
                                     let output = match button_command {
                                         Ok(ButtonCommand::No) => {
                                             dialog.graph_updater.handle_command(InputCommand::No)
@@ -189,7 +189,7 @@ async fn run() {
                             }
                         };
                     }
-                    ()
+                    
                 }
             }
         )

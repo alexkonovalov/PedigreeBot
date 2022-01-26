@@ -62,7 +62,7 @@ pub fn get_node_description(graph: &Graph<Person, &str, Directed, u32>, ix: &Nod
         let child = &graph[i];
         child_names.push(&child.name);
     }
-    match (parent_names.len() > 0, child_names.len() > 0) {
+    match (!parent_names.is_empty(), !child_names.is_empty()) {
         (true, true) => {
             Some(format!("who is parent of {} and also child of {}",child_names.join(", "), parent_names.join(", ")))
         },
