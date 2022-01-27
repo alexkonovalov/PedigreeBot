@@ -43,7 +43,7 @@ pub enum NodeCompleteness {
 
 pub const NEW_NODE_STATUS: NodeCompleteness = NodeCompleteness::Plain;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OutputAction {
     AskFirstParent(String),
     AskSecondParent(String),

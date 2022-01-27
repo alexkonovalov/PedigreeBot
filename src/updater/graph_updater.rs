@@ -49,7 +49,7 @@ impl GraphUpdater {
     //todo make it return index and completion status (excluding completion - Children complete. that will allow remove error from consuming function)
     fn get_next_node(&self) -> Option<NodeIndex<u32>> {
         let described_ix = self.graph.node_indices().find(|i| {
-            
+
             (self.graph[*i].completeness == NodeCompleteness::Plain) |
             (self.graph[*i].completeness == NodeCompleteness::OneParent) |
             (self.graph[*i].completeness == NodeCompleteness::ParentsComplete)
