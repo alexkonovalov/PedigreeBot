@@ -1,4 +1,4 @@
-use petgraph::Directed;
+use petgraph::{Directed};
 use petgraph::dot::Dot;
 use std::string::ToString;
 use petgraph::{graph::{NodeIndex}, Direction};
@@ -13,7 +13,6 @@ pub struct GraphUpdater {
 impl GraphUpdater {
     pub fn new() -> Self { Self { described_ix : DescribedNodeInfo::new(None), graph: Graph::new() } }
 
-    //todo move out. dot should be outside updater
     pub fn print_dot(&self) -> String {
         Dot::new(&self.graph).to_string()
     }
@@ -46,21 +45,15 @@ impl GraphUpdater {
         get_node_description(&self.graph, ix)
     }
 
-    //todo make it return index and completion status (excluding completion - Children complete. that will allow remove error from consuming function)
     fn get_next_node(&self) -> Option<NodeIndex<u32>> {
         let described_ix = self.graph.node_indices().find(|i| {
-
-            (self.graph[*i].completeness == NodeCompleteness::Plain) |
-            (self.graph[*i].completeness == NodeCompleteness::OneParent) |
-            (self.graph[*i].completeness == NodeCompleteness::ParentsComplete)
+            [NodeCompleteness::Plain, NodeCompleteness::OneParent, NodeCompleteness::ParentsComplete].contains(&self.graph[*i].completeness)
         });
         if let Some(ix) = described_ix {
             Some(ix)
         } else {
             self.graph.node_indices().find(|i| {
-                
-                (self.graph[*i].completeness == NodeCompleteness::Plain) |
-                (self.graph[*i].completeness == NodeCompleteness::SiblingsComplete)
+                self.graph[*i].completeness == NodeCompleteness::SiblingsComplete
             })
         }
     }
@@ -71,7 +64,6 @@ impl GraphUpdater {
                 self.described_ix = DescribedNodeInfo::new(Some(node_ix));
                 let name = &self.graph[self.described_ix.ix.unwrap()].name;
                 let completeness = &self.graph[self.described_ix.ix.unwrap()].completeness;
-                
                 let info: String;
                 if let Some(description) = self.get_description(&node_ix) { 
                     info = format!("{}, {}", name, description);
@@ -98,7 +90,7 @@ impl GraphUpdater {
                             OutputAction::AskIfChildren(info)
                         }
                     },
-                    _ => {
+                    NodeCompleteness::ChildrenComplete => {
                         OutputAction::NotifyError
                     }
                 }
@@ -160,10 +152,10 @@ impl GraphUpdater {
                     },
                     (NodeCompleteness::SiblingsComplete, InputCommand::Text(text)) => { //add child 
                         let child_id = self.add_child(&described_ix_copy, text);
-                        self.described_ix = DescribedNodeInfo::new(Some(child_id));
-                        OutputAction::AskSecondParent(described_name)
+                        self.described_ix = DescribedNodeInfo::new(Some(child_id)); //switch describe child
+                        OutputAction::AskSecondParent(text.to_string())
                     },
-                    (_,_)=> {
+                    (NodeCompleteness::ChildrenComplete, _) => {
                         OutputAction::NotifyError
                     }
                 }
@@ -173,4 +165,96 @@ impl GraphUpdater {
             }
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ROOT_NODE : &str = "Robert";
+    const MOM_NODE : &str = "Alexandra";
+    const DAD_NODE : &str = "Bernard";
+    const BRO_NODE : &str = "Bruce";
+    const CHILD_NODE : &str = "Anna";
+    const SPOUSE_NODE : &str = "Marie";
+
+    #[test]
+    fn empty() {
+        let updater = GraphUpdater::new();
+        assert_eq!(updater.print_dot(), 
+"digraph {
+}
+");
+    }
+
+    #[test]
+    fn one_node_added_complete() {
+        let mut updater = GraphUpdater::new();
+        let output_action = updater.handle_command(InputCommand::Text(ROOT_NODE));
+        let output_action_1 = updater.handle_command(InputCommand::No);
+        let output_action_2 = updater.handle_command(InputCommand::No);
+        let output_action_3 = updater.handle_command(InputCommand::Text(""));
+        assert_eq!(output_action, OutputAction::AskFirstParent(ROOT_NODE.to_string()), "Should ask for 1st parent");
+        assert_eq!(output_action_1, OutputAction::AskIfChildren(ROOT_NODE.to_string()), "Should ask for kids");
+        assert_eq!(output_action_2, OutputAction::NotifyComplete, "Should finilize graph");
+        assert_eq!(output_action_3, OutputAction::NotifyError, "Should notify that graph is already finished");
+        assert_eq!(updater.print_dot(),
+format!("digraph {{
+    0 [ label = \"{}\" ]
+}}
+", ROOT_NODE), "Should print graph with root node");
+    }
+
+    #[test]
+    fn family_with_two_children() {
+        let mut updater = GraphUpdater::new();
+        let output_action_1 = updater.handle_command(InputCommand::Text(ROOT_NODE));
+        let output_action_2 = updater.handle_command(InputCommand::Text(MOM_NODE));
+        let output_action_3 = updater.handle_command(InputCommand::Text(DAD_NODE));
+        let output_action_4 = updater.handle_command(InputCommand::Text(BRO_NODE));
+
+        assert_eq!(output_action_1, OutputAction::AskFirstParent(ROOT_NODE.to_string()), "Should ask for 1st parent");
+        assert_eq!(output_action_2, OutputAction::AskSecondParent(ROOT_NODE.to_string()), "Should ask for 2nd parent");
+        assert_eq!(output_action_3, OutputAction::AskIfSiblings(ROOT_NODE.to_string()), "Should ask for sibling");
+        assert_eq!(output_action_4, OutputAction::AskIfMoreSiblings(ROOT_NODE.to_string()), "Should ask for more siblings");
+        assert_eq!(updater.print_dot(),
+format!("digraph {{
+    0 [ label = \"{}\" ]
+    1 [ label = \"{}\" ]
+    2 [ label = \"{}\" ]
+    3 [ label = \"{}\" ]
+    1 -> 0 [ label = \"\" ]
+    2 -> 0 [ label = \"\" ]
+    2 -> 3 [ label = \"\" ]
+    1 -> 3 [ label = \"\" ]
+}}
+", ROOT_NODE, MOM_NODE, DAD_NODE, BRO_NODE), "Should print graph with 2 kids and 2 parents");
+    }
+
+    #[test]
+    fn orphan_root_with_child_and_spouse() {
+        let mut updater = GraphUpdater::new();
+        let output_action_1 = updater.handle_command(InputCommand::Text(ROOT_NODE));
+        let output_action_2 = updater.handle_command(InputCommand::No);
+        let output_action_3 = updater.handle_command(InputCommand::Text(CHILD_NODE));
+        let output_action_4 = updater.handle_command(InputCommand::Text(SPOUSE_NODE));
+        let output_action_5 = updater.handle_command(InputCommand::No);
+
+        assert_eq!(output_action_1, OutputAction::AskFirstParent(ROOT_NODE.to_string()), "Should ask for parent");
+        assert_eq!(output_action_2, OutputAction::AskIfChildren(ROOT_NODE.to_string()), "Should jump straight to children");
+        assert_eq!(output_action_3, OutputAction::AskSecondParent(CHILD_NODE.to_string()), "Should switch to kid's second parent");
+        assert_eq!(output_action_4, OutputAction::AskIfSiblings(CHILD_NODE.to_string()), "Should check if kids has siblings");
+        assert_eq!(output_action_5, OutputAction::AskFirstParent(format!("{}, who is parent of {}", SPOUSE_NODE, CHILD_NODE)), "Should start asking about spouse");
+        assert_eq!(updater.print_dot(),
+format!("digraph {{
+    0 [ label = \"{}\" ]
+    1 [ label = \"{}\" ]
+    2 [ label = \"{}\" ]
+    0 -> 1 [ label = \"\" ]
+    2 -> 1 [ label = \"\" ]
+}}
+", ROOT_NODE, CHILD_NODE, SPOUSE_NODE), "Should print graph with root node and 1 child");
+    }
+
 }
