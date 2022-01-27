@@ -82,24 +82,24 @@ impl GraphUpdater {
                 
                 match completeness {
                     NodeCompleteness::Plain => {
-                        return OutputAction::AskFirstParent(info);
+                        OutputAction::AskFirstParent(info)
                     },
                     NodeCompleteness::OneParent => {
-                        return OutputAction::AskSecondParent(info);
+                        OutputAction::AskSecondParent(info)
                     },
                     NodeCompleteness::ParentsComplete => {
-                        return OutputAction::AskIfSiblings(info);
+                        OutputAction::AskIfSiblings(info)
                     },
                     NodeCompleteness::SiblingsComplete => {
                         if self.has_children(&node_ix) {
-                            return OutputAction::AskIfMoreChildren(info);
+                            OutputAction::AskIfMoreChildren(info)
                         }
                         else {
-                            return OutputAction::AskIfChildren(info);
+                            OutputAction::AskIfChildren(info)
                         }
                     },
                     _ => {
-                        return OutputAction::NotifyError
+                        OutputAction::NotifyError
                     }
                 }
             },

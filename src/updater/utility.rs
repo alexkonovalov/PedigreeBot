@@ -48,11 +48,11 @@ pub fn map_next_action_output(action: &OutputAction) -> OutputCommand {
             ),
         OutputAction::NotifyError =>
             OutputCommand::Prompt(
-                format!("Some error occured :( Please restart the bot!")
+                "Some error occured :( Please restart the bot!".to_string()
             ),
         OutputAction::NotifyComplete =>
             OutputCommand::Prompt(
-                format!("We asked enough! you can get your pedigree chart by performing /finish command")
+                "We asked enough! you can get your pedigree chart by performing /finish command".to_string()
             ),
     }
 }
