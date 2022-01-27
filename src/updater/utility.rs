@@ -1,51 +1,59 @@
-use super::model::{Action, OutputCommand, ButtonCommand, Person};
+use super::model::{OutputAction, OutputCommand, ButtonCommand, Person};
 use petgraph::{graph::{NodeIndex}, Direction};
 use petgraph::{Graph, Directed};
 
-pub fn map_next_action_output(action: &Action, name: &str) -> OutputCommand {
+pub fn map_next_action_output(action: &OutputAction) -> OutputCommand {
     return match action {
-        Action::AskFirstParent => 
+        OutputAction::AskFirstParent(description) => 
             OutputCommand::PromptButtons(
                 vec![
                     (ButtonCommand::No, "Don't know".to_string())
                 ],
-                format!("Write then name of the 1st parent of {}. If you don't know the name, press the button.", name)
+                format!("Write then name of the 1st parent of {}. If you don't know the name, press the button.", description)
             ),
-        Action::AskSecondParent => 
+        OutputAction::AskSecondParent(description) => 
             OutputCommand::PromptButtons(
                 vec![
                     (ButtonCommand::No, "Don't know".to_string())
                 ],
-                format!("Write then name of the 2nd parent of {}. If you don't know the name, press the button.", name)
+                format!("Write then name of the 2nd parent of {}. If you don't know the name, press the button.", description)
             ),
-        Action::AskIfSiblings => 
+        OutputAction::AskIfSiblings(description) => 
             OutputCommand::PromptButtons(
                 vec![
                     (ButtonCommand::No, "No siblings".to_string())
                 ],
-                format!("Maybe {} has some siblings? Write the name of the first one that you know or press the button.", name)
+                format!("Maybe {} has some siblings? Write the name of the first one that you know or press the button.", description)
             ),
-        Action::AskIfMoreSiblings => 
+        OutputAction::AskIfMoreSiblings(description) => 
             OutputCommand::PromptButtons(
                 vec![
                     (ButtonCommand::No, "No more siblings".to_string())
                 ],
-                format!("Tell me the name of one more sibling of {} or press the button.", name)
+                format!("Tell me the name of one more sibling of {} or press the button.", description)
             ),
-        Action::AskIfChildren => 
+        OutputAction::AskIfChildren(description) => 
             OutputCommand::PromptButtons(
                 vec![
                     (ButtonCommand::No, "No children".to_string())
                 ],
-                format!("Tell me if {} has any children. If so, tell me the name. If none or you don't know, press the button.", name)
+                format!("Tell me if {} has any children. If so, tell me the name. If none or you don't know, press the button.", description)
             ),
-        Action::AskIfMoreChildren => 
+        OutputAction::AskIfMoreChildren(description) => 
             OutputCommand::PromptButtons(
                 vec![
                     (ButtonCommand::No, "No".to_string())
                 ],
-                format!("Maybe {} has any other kids? If there's none, press the button. If you know someone, write the name.", name)
-            )
+                format!("Maybe {} has any other kids? If there's none, press the button. If you know someone, write the name.", description)
+            ),
+        OutputAction::NotifyError =>
+            OutputCommand::Prompt(
+                format!("Some error occured :( Please restart the bot!")
+            ),
+        OutputAction::NotifyComplete =>
+            OutputCommand::Prompt(
+                format!("We asked enough! you can get your pedigree chart by performing /finish command")
+            ),
     }
 }
 

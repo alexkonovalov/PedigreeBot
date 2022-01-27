@@ -17,6 +17,7 @@ use teloxide_core::types::InputFile;
 
 use crate::updater::graph_updater::{ GraphUpdater };
 use crate::updater::model::{ButtonCommand,InputCommand, OutputCommand};
+use crate::updater::utility::map_next_action_output;
 mod updater;
 mod auxillary;
 
@@ -119,9 +120,9 @@ async fn run() {
                             let dialog = dialogs.get_mut(&chat_id.to_string());
 
                             if let Some(mut dialog) = dialog {
-                                let output = dialog.graph_updater.handle_command(InputCommand::Text(&text));
-
-                                let msg =  match output {
+                                let output_action = dialog.graph_updater.handle_command(InputCommand::Text(&text));
+                                let output_command = map_next_action_output(&output_action);
+                                let msg =  match output_command {
                                     OutputCommand::Prompt(a) => cx.answer(a),
                                     OutputCommand::PromptButtons(commands, promdpt) => cx.answer(promdpt).reply_markup(make_inline_keyboard(&commands)),
                                 };
@@ -162,7 +163,8 @@ async fn run() {
                                     let button_command = ButtonCommand::from_str(input_str);
                                     let output = match button_command {
                                         Ok(ButtonCommand::No) => {
-                                            dialog.graph_updater.handle_command(InputCommand::No)
+                                            let output_action = dialog.graph_updater.handle_command(InputCommand::No);
+                                            map_next_action_output(&output_action)
                                         }
                                         _ => OutputCommand::Prompt("Can't recognise the command".to_string())
                                     };

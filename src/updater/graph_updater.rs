@@ -3,11 +3,7 @@ use petgraph::dot::Dot;
 use std::string::ToString;
 use petgraph::{graph::{NodeIndex}, Direction};
 use petgraph::prelude::Graph;
-
-use crate::updater::model::{ OutputCommand};
-
-use super::{model::{Person, DescribedNodeInfo, NodeCompleteness, Action, InputCommand, NEW_NODE_STATUS}, utility::get_node_description};
-use super::utility::map_next_action_output;
+use super::{model::{Person, DescribedNodeInfo, NodeCompleteness, OutputAction, InputCommand, NEW_NODE_STATUS}, utility::get_node_description};
 
 pub struct GraphUpdater {
     graph: Graph<Person, &'static str, Directed, u32>,
@@ -48,8 +44,9 @@ impl GraphUpdater {
 
     fn get_description(&self, ix: &NodeIndex<u32>) -> Option<String> {
         get_node_description(&self.graph, ix)
-   }
+    }
 
+    //todo make it return index and completion status (excluding completion - Children complete. that will allow remove error from consuming function)
     fn get_next_node(&self) -> Option<NodeIndex<u32>> {
         let described_ix = self.graph.node_indices().find(|i| {
             
@@ -68,7 +65,7 @@ impl GraphUpdater {
         }
     }
 
-    fn switch_next_relative(&mut self) -> OutputCommand {
+    fn switch_next_relative(&mut self) -> OutputAction {
         match self.get_next_node() {
             Some(node_ix) => {
                 self.described_ix = DescribedNodeInfo::new(Some(node_ix));
@@ -85,39 +82,40 @@ impl GraphUpdater {
                 
                 match completeness {
                     NodeCompleteness::Plain => {
-                        return map_next_action_output(&Action::AskFirstParent, &info);
+                        return OutputAction::AskFirstParent(info);
                     },
                     NodeCompleteness::OneParent => {
-                        return map_next_action_output(&Action::AskSecondParent, &info);
+                        return OutputAction::AskSecondParent(info);
                     },
                     NodeCompleteness::ParentsComplete => {
-                        return map_next_action_output(&Action::AskIfSiblings, &info);
+                        return OutputAction::AskIfSiblings(info);
                     },
                     NodeCompleteness::SiblingsComplete => {
                         if self.has_children(&node_ix) {
-                            return map_next_action_output(&Action::AskIfMoreChildren, &info);
+                            return OutputAction::AskIfMoreChildren(info);
                         }
                         else {
-                            return map_next_action_output(&Action::AskIfChildren, &info);
+                            return OutputAction::AskIfChildren(info);
                         }
                     },
-                    _ => ()
+                    _ => {
+                        return OutputAction::NotifyError
+                    }
                 }
-                OutputCommand::Prompt("Oops. Next node didn't match".to_string())
             },
             None => {
-                OutputCommand::Prompt("We asked enough! you can get your pedigree chart by performing /finish command".to_string())
+                OutputAction::NotifyComplete
             }
         }
     }
 
-    pub fn handle_command (&mut self, input_command: InputCommand) -> OutputCommand {
+    pub fn handle_command (&mut self, input_command: InputCommand) -> OutputAction {
         let described_ix = &self.described_ix; //todo rename
         match (described_ix.ix, input_command) {
             (None, InputCommand::Text(name)) => {
                 let root_index = self.graph.add_node(Person::new(name.to_string(), NEW_NODE_STATUS));
                 self.described_ix = DescribedNodeInfo::new(Some(root_index));
-                map_next_action_output(&Action::AskFirstParent, name)
+                OutputAction::AskFirstParent(name.to_string())
             }
             (Some(ix), command) => {
                 let current_status: &NodeCompleteness;
@@ -137,7 +135,7 @@ impl GraphUpdater {
                     (NodeCompleteness::Plain, InputCommand::Text(text)) => {
                         self.add_parent(&described_ix_copy, text);
                         self.graph[described_ix_copy].completeness = NodeCompleteness::OneParent;
-                        map_next_action_output(&Action::AskSecondParent, &described_name)
+                        OutputAction::AskSecondParent(described_name)
                     },
                     (NodeCompleteness::OneParent, InputCommand::No) => {
                         self.graph[described_ix_copy].completeness = NodeCompleteness::ParentsComplete;
@@ -146,7 +144,7 @@ impl GraphUpdater {
                     (NodeCompleteness::OneParent, InputCommand::Text(text)) => {
                         self.add_parent(&described_ix_copy, text);
                         self.graph[described_ix_copy].completeness = NodeCompleteness::ParentsComplete;
-                        map_next_action_output(&Action::AskIfSiblings, &described_name)
+                        OutputAction::AskIfSiblings(described_name)
                     },
                     (NodeCompleteness::ParentsComplete, InputCommand::No) => { //end siblings. switch to next
                         self.graph[described_ix_copy].completeness = NodeCompleteness::SiblingsComplete;
@@ -154,7 +152,7 @@ impl GraphUpdater {
                     },
                     (NodeCompleteness::ParentsComplete, InputCommand::Text(text),) => { //add sibling 
                         self.add_sibling(&described_ix_copy, text);
-                        map_next_action_output(&Action::AskIfMoreSiblings, &described_name)
+                        OutputAction::AskIfMoreSiblings(described_name)
                     },
                     (NodeCompleteness::SiblingsComplete, InputCommand::No) => { //end children. switch to next
                         self.graph[described_ix_copy].completeness = NodeCompleteness::ChildrenComplete;
@@ -163,15 +161,15 @@ impl GraphUpdater {
                     (NodeCompleteness::SiblingsComplete, InputCommand::Text(text)) => { //add child 
                         let child_id = self.add_child(&described_ix_copy, text);
                         self.described_ix = DescribedNodeInfo::new(Some(child_id));
-                        map_next_action_output(&Action::AskSecondParent, text)
+                        OutputAction::AskSecondParent(described_name)
                     },
                     (_,_)=> {
-                         OutputCommand::Prompt("Oops".to_string())
-                     }
+                        OutputAction::NotifyError
+                    }
                 }
             }
             _ => {
-                OutputCommand::Prompt("Oops".to_string())
+                OutputAction::NotifyError
             }
         }
     }

@@ -3,15 +3,11 @@ use strum_macros::Display;
 use std::fmt::{self, Display};
 use petgraph::{graph::{NodeIndex}};
 
-#[derive(EnumString, Display)]
+#[derive(EnumString, Display, Debug)]
 pub enum ButtonCommand {
     No,
 }
 
-pub enum OutputCommand {
-     Prompt(String),
-     PromptButtons(Vec<(ButtonCommand, String)>, String)
-}
 
 pub struct Person {
     pub name: String,
@@ -47,17 +43,26 @@ pub enum NodeCompleteness {
 
 pub const NEW_NODE_STATUS: NodeCompleteness = NodeCompleteness::Plain;
 
-pub enum Action {
-    AskFirstParent,
-    AskSecondParent,
-    AskIfSiblings,
-    AskIfMoreSiblings,
-    AskIfChildren,
-    AskIfMoreChildren
+#[derive(Debug)]
+pub enum OutputAction {
+    AskFirstParent(String),
+    AskSecondParent(String),
+    AskIfSiblings(String),
+    AskIfMoreSiblings(String),
+    AskIfChildren(String),
+    AskIfMoreChildren(String),
+    NotifyError,
+    NotifyComplete
 }
 
 #[derive(Debug)]
 pub enum InputCommand<'a> {
     Text(&'a str),
     No
+}
+
+#[derive(Debug)]
+pub enum OutputCommand {
+    Prompt(String),
+    PromptButtons(Vec<(ButtonCommand, String)>, String)
 }
