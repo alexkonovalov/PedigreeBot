@@ -3,7 +3,6 @@ use chashmap::CHashMap;
 
 use teloxide::adaptors::AutoSend;
 use teloxide::payloads::SendMessageSetters;
-use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup };
 use teloxide::{ utils::command::BotCommand, prelude::*};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use std::{ net::SocketAddr, env };
@@ -15,9 +14,9 @@ use dotenv::dotenv;
 use reqwest::Url;
 use teloxide_core::types::InputFile;
 
+use crate::auxillary::{make_inline_keyboard, map_next_action_output, OutputCommand};
 use crate::updater::graph_updater::{ GraphUpdater };
-use crate::updater::model::{ButtonCommand,InputCommand, OutputCommand};
-use crate::updater::utility::map_next_action_output;
+use crate::updater::model::{ButtonCommand,InputAction};
 mod updater;
 mod auxillary;
 
@@ -66,21 +65,6 @@ async fn run() {
     let dialogs: CHashMap<String, Dialog> = CHashMap::new();
     let dialogs_rc = Arc::new(dialogs);
 
-    fn make_inline_keyboard(commands: &Vec<(ButtonCommand, String)>) -> InlineKeyboardMarkup {
-        let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
-
-        for versions in commands.chunks(3) {
-            let row = versions
-                .iter()
-                .map(|command| InlineKeyboardButton::callback(String::from(&command.1), command.0.to_string()))
-                .collect();
-
-            keyboard.push(row);
-        }
-
-        InlineKeyboardMarkup::new(keyboard)
-    }
-
     let dialogs_text_message_rc= dialogs_rc.clone();
     let handle_text_message = move |rx: DispatcherHandlerRx<AutoSend<Bot>, Message>| {
         UnboundedReceiverStream::new(rx).for_each_concurrent(None, move |cx| {
@@ -93,34 +77,30 @@ async fn run() {
                         Ok(Command::Help) => {
                             // Just send the description of all commands.
                             let _ = cx.answer(Command::descriptions()).await;
-                            
                         }
                         Ok(Command::Start) => {
                             dialogs
                                 .insert(chat_id.to_string(), Dialog::new());
 
                             let _ = cx.answer("Let's start! Please add some person in your family tree or write your name").await;
-                            
                         }
                         Ok(Command::Finish) => {
                             let dialog = dialogs.get(&chat_id.to_string());
 
                             if let Some(dialog) = dialog {
                                 let dot_graph = dialog.graph_updater.print_dot();
-                                if let Ok(graph) = auxillary::print_graph(dot_graph) {
-                                    let _ = cx.answer_photo(InputFile::Memory {
-                                        file_name: "diagram.png".to_string(),
-                                        data: std::borrow::Cow::Owned(graph)
-                                    }).await;
-                                }
+                                let graph = auxillary::print_graph(dot_graph);
+                                let _ = cx.answer_photo(InputFile::Memory {
+                                    file_name: "diagram.png".to_string(),
+                                    data: std::borrow::Cow::Owned(graph)
+                                }).await;
                             }
-                            
                         }
                         _ => {
                             let dialog = dialogs.get_mut(&chat_id.to_string());
 
                             if let Some(mut dialog) = dialog {
-                                let output_action = dialog.graph_updater.handle_command(InputCommand::Text(&text));
+                                let output_action = dialog.graph_updater.handle_command(InputAction::Text(&text));
                                 let output_command = map_next_action_output(&output_action);
                                 let msg =  match output_command {
                                     OutputCommand::Prompt(a) => cx.answer(a),
@@ -163,7 +143,7 @@ async fn run() {
                                     let button_command = ButtonCommand::from_str(input_str);
                                     let output = match button_command {
                                         Ok(ButtonCommand::No) => {
-                                            let output_action = dialog.graph_updater.handle_command(InputCommand::No);
+                                            let output_action = dialog.graph_updater.handle_command(InputAction::No);
                                             map_next_action_output(&output_action)
                                         }
                                         _ => OutputCommand::Prompt("Can't recognise the command".to_string())

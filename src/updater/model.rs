@@ -8,7 +8,6 @@ pub enum ButtonCommand {
     No,
 }
 
-
 pub struct Person {
     pub name: String,
     pub completeness: NodeCompleteness,
@@ -56,13 +55,7 @@ pub enum OutputAction {
 }
 
 #[derive(Debug)]
-pub enum InputCommand<'a> {
+pub enum InputAction<'a> {
     Text(&'a str),
     No
-}
-
-#[derive(Debug)]
-pub enum OutputCommand {
-    Prompt(String),
-    PromptButtons(Vec<(ButtonCommand, String)>, String)
 }
