@@ -58,6 +58,10 @@ async fn run() {
     let url = env::var("SERVER_URL").expect("no server url in env");
     let ip = env::var("IP").expect("no IP in env");
     let port = env::var("PORT").expect("no PORT in env");
+    let clear_session_interval = env::var("CLEAR_SESSION_MINUTES")
+            .expect("no CLEAR_SESSION_MINUTES in env")
+            .parse::<u32>()
+            .expect("Error parsing CLEAR_SESSION_MINUTES");
 
     let addr = format!("{}:{}", ip, port).parse::<SocketAddr>().unwrap();
     let url = Url::parse(&url).unwrap();
@@ -75,14 +79,13 @@ async fn run() {
                 async move {
                     match BotCommand::parse(&text, "PedigreeBot") {
                         Ok(Command::Help) => {
-                            // Just send the description of all commands.
-                            let _ = cx.answer(Command::descriptions()).await;
+                            cx.answer(Command::descriptions()).await.log_on_error().await;
                         }
                         Ok(Command::Start) => {
                             dialogs
                                 .insert(chat_id.to_string(), Dialog::new());
 
-                            let _ = cx.answer("Let's start! Please add some person in your family tree or write your name").await;
+                            cx.answer("Let's start! Please add some person in your family tree or write your name").await.log_on_error().await;
                         }
                         Ok(Command::Finish) => {
                             let dialog = dialogs.get(&chat_id.to_string());
@@ -93,7 +96,7 @@ async fn run() {
                                 let _ = cx.answer_photo(InputFile::Memory {
                                     file_name: "diagram.png".to_string(),
                                     data: std::borrow::Cow::Owned(graph)
-                                }).await;
+                                }).await.log_on_error().await;
                             }
                         }
                         _ => {
@@ -136,7 +139,6 @@ async fn run() {
                                         if id != last_msg_id {
                                             //remove buttons from that message
                                             bot.edit_message_reply_markup(chat.id, id).await.unwrap();
-                                            return ;
                                         }
                                     }
 
@@ -180,10 +182,9 @@ async fn run() {
     let dialogs_session_rc= dialogs_rc.clone();
     let _session_cleaner = task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60 * 60));
-        let dialogs = dialogs_session_rc.clone();
         loop {
             interval.tick().await;
-            dialogs.retain(|_, dialog| Instant::now().duration_since(dialog.creation).as_secs() < 60 * 60 * 5);
+            dialogs_session_rc.retain(|_, dialog| Instant::now().duration_since(dialog.creation).as_secs() < (60 * 60 * clear_session_interval).into());
         }
     });
 
