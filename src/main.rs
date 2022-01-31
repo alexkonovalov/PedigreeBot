@@ -58,10 +58,10 @@ async fn run() {
     let url = env::var("SERVER_URL").expect("no server url in env");
     let ip = env::var("IP").expect("no IP in env");
     let port = env::var("PORT").expect("no PORT in env");
-    let clear_session_interval = env::var("CLEAR_SESSION_MINUTES")
-            .expect("no CLEAR_SESSION_MINUTES in env")
+    let clear_session_interval = env::var("CLEAR_SESSION_HOURS")
+            .expect("no CLEAR_SESSION_HOURS in env")
             .parse::<u32>()
-            .expect("Error parsing CLEAR_SESSION_MINUTES");
+            .expect("Error parsing CLEAR_SESSION_HOURS");
 
     let addr = format!("{}:{}", ip, port).parse::<SocketAddr>().unwrap();
     let url = Url::parse(&url).unwrap();
